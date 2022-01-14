@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"ween/internal"
 )
 
 var serverCmd = &cobra.Command{
@@ -25,5 +26,5 @@ func init() {
 }
 
 func serverRun() {
-
+	internal.Proxy()
 }
