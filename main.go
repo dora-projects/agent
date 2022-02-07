@@ -1,6 +1,6 @@
 package main
 
-import "ween/cmd"
+import "agent/cmd"
 
 func main() {
 	cmd.Execute()

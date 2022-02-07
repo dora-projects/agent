@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"agent/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"ween/internal"
 )
 
 var serverCmd = &cobra.Command{
