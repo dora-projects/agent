@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -9,12 +10,23 @@ import (
 	"github.com/spf13/viper"
 )
 
+//http://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow&t=agent
+const banner = `
+ █████╗  ██████╗ ███████╗███╗   ██╗████████╗
+██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
+███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   
+██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   
+██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   
+╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   
+
+`
+
 var cfgFile string
 
 var rootCmd = &cobra.Command{
-	Use:   "ween",
-	Short: "web env server.",
-	Long:  `web env manage server.`,
+	Use:   "agent",
+	Short: "agent static server.",
+	Long:  `serve a static site, single page application`,
 }
 
 func Execute() {
@@ -25,23 +37,18 @@ func Execute() {
 }
 
 func init() {
+	fmt.Print(banner)
+
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is /etc/ween/config.yml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", ".env", "config file (default is .env)")
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.AddConfigPath("/etc/ween")
-		viper.SetConfigName("config")
-	}
-
+	viper.SetConfigFile(cfgFile)
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-		viper.Set("installed", true)
+		log.Println("Using config file:", viper.ConfigFileUsed())
 	}
 }

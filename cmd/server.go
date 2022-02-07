@@ -17,7 +17,7 @@ var serverCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
-	serverCmd.Flags().Int("port", 6000, "server port")
+	serverCmd.Flags().Int("port", 8080, "server port")
 
 	err := viper.BindPFlags(serverCmd.Flags())
 	if err != nil {
@@ -26,5 +26,6 @@ func init() {
 }
 
 func serverRun() {
+	internal.RedisInit()
 	internal.Proxy()
 }

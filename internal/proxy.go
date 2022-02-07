@@ -1,13 +1,26 @@
 package internal
 
 import (
+	"context"
+	"fmt"
+	"github.com/spf13/viper"
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 )
 
-func spaHandler(w http.ResponseWriter, r *http.Request) {
+func handler(w http.ResponseWriter, r *http.Request) {
+
+	ctx := context.Background()
+
+	conf := Rdb.Get(ctx, "test").String()
+	fmt.Println(conf)
+
 	//todo 从配置中获取
 	staticPath := "./static/build"
 	indexPath := "index.html"
@@ -41,11 +54,41 @@ func spaHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func Proxy() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", spaHandler)
-	err := http.ListenAndServe(":8080", mux)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
 
-	if err != nil {
-		panic(err)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handler)
+
+	svr := &http.Server{
+		Addr:         ":" + viper.GetString("port"),
+		Handler:      mux,
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
+		IdleTimeout:  time.Second * 5 * 60,
 	}
+
+	go func() {
+		log.Printf("agent server listen at http://127.0.0.1%s", svr.Addr)
+		if err := svr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("error ListenAndServe : %s", err)
+			return
+		}
+	}()
+
+	gracefulShutdown(ctx, svr)
+}
+
+func gracefulShutdown(ctx context.Context, server *http.Server) {
+	<-ctx.Done()
+	now := time.Now()
+
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	log.Println("start server shutdown...")
+	if err := server.Shutdown(timeout); err != nil {
+		log.Fatal("server shutdown:", err)
+	}
+	log.Printf("graceful shutdown server %v\n", time.Since(now))
 }
