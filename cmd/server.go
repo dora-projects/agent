@@ -27,5 +27,5 @@ func init() {
 
 func serverRun() {
 	internal.RedisInit()
-	internal.Proxy()
+	internal.HttpServer()
 }

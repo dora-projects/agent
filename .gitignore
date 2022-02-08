@@ -1,2 +1,5 @@
 static
 .env
+
+build
+config.json

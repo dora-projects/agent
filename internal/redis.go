@@ -2,20 +2,22 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/go-redis/redis/v8"
-	"github.com/spf13/viper"
 	"sync"
 )
 
 var Rdb *redis.Client
-var onceRedis sync.Once
+var runOnce sync.Once
 
 func RedisInit() {
-	onceRedis.Do(func() {
-		host := viper.GetString("REDIS_HOST")
-		port := viper.GetString("REDIS_PORT")
-		pwd := viper.GetString("REDIS_PASSWORD")
+	runOnce.Do(func() {
+		conf := GetConfig()
+
+		host := conf.RedisHost
+		port := conf.RedisPort
+		pwd := conf.RedisPassword
 
 		if host == "" || pwd == "" {
 			panic(errors.New("missing redis env host or port"))
@@ -34,4 +36,20 @@ func RedisInit() {
 			panic(err)
 		}
 	})
+}
+
+type SiteConfig struct {
+	Release  string            `json:"release"`
+	Filepath string            `json:"filepath"`
+	Index    string            `json:"index"`
+	Proxy    map[string]string `json:"proxy"`
+}
+
+func ParseSiteConfig(data []byte) (*SiteConfig, error) {
+	var conf SiteConfig
+	err := json.Unmarshal(data, &conf)
+	if err != nil {
+		return nil, err
+	}
+	return &conf, err
 }
