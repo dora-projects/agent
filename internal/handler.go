@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"github.com/pkg/errors"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -101,6 +102,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		errorRes(w, err)
 		return
 	}
+	log.Printf("site config: %v\n", config)
 
 	path, err := filepath.Abs(r.URL.Path)
 	if err != nil {
@@ -134,6 +136,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	indexPath := config.Index
 
 	relPath := filepath.Join(staticPath, path)
+
+	log.Printf("rel path: %v\n", relPath)
+
 	accept := r.Header.Get("Accept")
 
 	_, err = os.Stat(relPath)
