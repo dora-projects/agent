@@ -2,6 +2,8 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os/signal"
@@ -15,6 +17,15 @@ func HttpServer() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handler)
+	mux.HandleFunc("/_health", func(writer http.ResponseWriter, request *http.Request) {
+		info := make(map[string]string)
+		info["build"] = Build
+		info["compile"] = Compile
+		info["version"] = Version
+
+		marshal, _ := json.Marshal(info)
+		_, _ = fmt.Fprintf(writer, string(marshal))
+	})
 
 	conf := GetConfig()
 	svr := &http.Server{
