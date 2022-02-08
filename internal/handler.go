@@ -2,9 +2,10 @@ package internal
 
 import (
 	"context"
-	"fmt"
 	"github.com/pkg/errors"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,77 @@ import (
 
 func errorRes(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	}
+	return a + b
+}
+
+func joinURLPath(a, b *url.URL) (path, rawpath string) {
+	if a.RawPath == "" && b.RawPath == "" {
+		return singleJoiningSlash(a.Path, b.Path), ""
+	}
+	// Same as singleJoiningSlash, but uses EscapedPath to determine
+	// whether a slash should be added
+	apath := a.EscapedPath()
+	bpath := b.EscapedPath()
+
+	aslash := strings.HasSuffix(apath, "/")
+	bslash := strings.HasPrefix(bpath, "/")
+
+	switch {
+	case aslash && bslash:
+		return a.Path + b.Path[1:], apath + bpath[1:]
+	case !aslash && !bslash:
+		return a.Path + "/" + b.Path, apath + "/" + bpath
+	}
+	return a.Path + b.Path, apath + bpath
+}
+
+func newReverseProxy(target *url.URL) *httputil.ReverseProxy {
+	targetQuery := target.RawQuery
+
+	var realUrl string
+
+	director := func(req *http.Request) {
+		req.Host = target.Host
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.URL.Path, req.URL.RawPath = joinURLPath(target, req.URL)
+
+		if targetQuery == "" || req.URL.RawQuery == "" {
+			req.URL.RawQuery = targetQuery + req.URL.RawQuery
+		} else {
+			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+		}
+
+		realUrl = req.URL.String()
+
+		//if _, ok := req.Header["User-Agent"]; !ok {
+		//	// explicitly disable User-Agent so it's not set to default value
+		//	req.Header.Set("User-Agent", "")
+		//}
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Director: director,
+		ModifyResponse: func(response *http.Response) error {
+			response.Header.Set("X-Real-Url", realUrl)
+
+			return nil
+		},
+		ErrorHandler: func(writer http.ResponseWriter, request *http.Request, err error) {
+		}}
+
+	return proxy
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -30,10 +102,30 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	path, err := filepath.Abs(r.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// api proxy
 	if config.Proxy != nil {
+		var targetVal string
 		for k, v := range config.Proxy {
-			fmt.Printf("%v %v  \n", k, v)
+			if strings.HasPrefix(path, k) {
+				targetVal = v
+				break
+			}
+		}
+
+		// todo: support path rewrite
+		// https://webpack.js.org/configuration/dev-server/#devserverproxy
+		if targetVal != "" {
+			target, _ := url.Parse(targetVal)
+			// create the reverse proxy
+			proxy := newReverseProxy(target)
+			proxy.ServeHTTP(w, r)
+			return
 		}
 	}
 
@@ -41,16 +133,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	staticPath := config.Filepath
 	indexPath := config.Index
 
-	path, err := filepath.Abs(r.URL.Path)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	path = filepath.Join(staticPath, path)
+	relPath := filepath.Join(staticPath, path)
 	accept := r.Header.Get("Accept")
 
-	_, err = os.Stat(path)
+	_, err = os.Stat(relPath)
 	if os.IsNotExist(err) {
 		// return index.html
 		if strings.Contains(accept, "text/html") || strings.Contains(accept, "text/plain") {
