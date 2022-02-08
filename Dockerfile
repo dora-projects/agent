@@ -4,15 +4,15 @@ ENV CGO_ENABLED 0
 ENV GOOS linux
 ENV TZ Asia/Shanghai
 
-WORKDIR /app
+WORKDIR /build
 COPY go.mod .
 COPY go.sum .
 #RUN GOPROXY="https://goproxy.io,direct" go mod download
 RUN go mod download
 
 COPY . .
-RUN ["chmod", "+x", "/app/version.sh"]
-RUN ["sh", "/app/version.sh"]
+RUN ["chmod", "+x", "/build/version.sh"]
+RUN ["sh", "/build/version.sh"]
 
 RUN go build -o agent main.go
 
@@ -24,6 +24,6 @@ RUN apk add --no-cache tzdata
 ENV TZ Asia/Shanghai
 
 WORKDIR /app
-COPY --from=builder /app/agent /agent
+COPY --from=builder /build/agent .
 
 CMD ["/app/agent", "server"]
